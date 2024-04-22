@@ -4,15 +4,15 @@ version: 2.1.4
 homepage: https://mehran.monster/htmls/voicey.html
 
 environment:
-  sdk: ">=2.17.0 <4.0.0"
+  sdk: '>=3.0.5 <4.0.0'
   flutter: ">=1.17.0"
 
 dependencies:
   flutter:
     sdk: flutter
   flutter_cache_manager: ^3.3.1
-  just_audio: ^0.9.36
-  syncfusion_flutter_sliders: ^23.2.6
+  just_audio: ^0.9.37
+  syncfusion_flutter_sliders: ^25.1.40
 
 dev_dependencies:
   flutter_test:
