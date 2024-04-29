@@ -21,20 +21,26 @@ class MyApp extends StatelessWidget {
                   VoiceMessageView(
                     controller: VoiceController(
                       audioSrc:
-                          'https://dl.musichi.ir/1401/06/21/Ghors%202.mp3',
-                      maxDuration: const Duration(seconds: 10),
+                          'https://app.seen.ninja/storage/media/410/1713680496999999.mp3',
+                      maxDuration: const Duration(minutes: 10),
                       isFile: false,
                       onComplete: () {
                         /// do something on complete
+                        print("onComplete");
                       },
                       onPause: () {
                         /// do something on pause
+                         print("onPause");
+                    
+                
                       },
                       onPlaying: () {
                         /// do something on playing
+                        print("playing");
                       },
                       onError: (err) {
                         /// do somethin on error
+                        print(err );
                       },
                     ),
                     innerPadding: 12,

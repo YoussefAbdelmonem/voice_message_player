@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -8,7 +9,8 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:voice_message_package/src/helpers/play_status.dart';
 import 'package:voice_message_package/src/helpers/utils.dart';
-
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
 /// A controller for managing voice playback.
 ///
 /// The [VoiceController] class provides functionality for playing, pausing, stopping, and seeking voice playback.
@@ -104,6 +106,17 @@ class VoiceController extends MyTicker {
     _updateUi();
   }
 
+Future<String> downloadAudio() async {
+  final dio = Dio();
+  final response = await dio.get<List<int>>(audioSrc, options: Options(responseType: ResponseType.bytes));
+  final bytes = response.data!;
+  final appDir = await getApplicationDocumentsDirectory();
+  final filePath = '${appDir.path}/audio.mp3';
+  final file = File(filePath);
+  await file.writeAsBytes(bytes);
+  return filePath;
+}
+
   Future play() async {
     try {
       playStatus = PlayStatus.downloading;
@@ -113,17 +126,22 @@ class VoiceController extends MyTicker {
         await startPlaying(path);
         onPlaying();
       } else {
-        downloadStreamSubscription = _getFileFromCacheWithProgress()
-            .listen((FileResponse fileResponse) async {
-          if (fileResponse is FileInfo) {
-            await startPlaying(fileResponse.file.path);
-            onPlaying();
-          } else if (fileResponse is DownloadProgress) {
-            _updateUi();
-            print(downloadProgress);
-            downloadProgress = fileResponse.progress;
-          }
-        });
+     
+       final audio = await downloadAudio();
+          print("eeeeeeeeee=>$audio");
+        await startPlaying(audio);
+
+        // downloadStreamSubscription = _getFileFromCacheWithProgress()
+        //     .listen((FileResponse fileResponse) async {
+        //   if (fileResponse is FileInfo) {
+        //     await startPlaying(fileResponse.file.path);
+        //     onPlaying();
+        //   } else if (fileResponse is DownloadProgress) {
+        //     _updateUi();
+        //     print(downloadProgress);
+        //     downloadProgress = fileResponse.progress;
+        //   }
+        // });
       }
     } catch (err) {
       playStatus = PlayStatus.downloadError;
@@ -203,8 +221,8 @@ class VoiceController extends MyTicker {
     if (isFile) {
       return audioSrc;
     }
-    final p = await DefaultCacheManager().getSingleFile(audioSrc);
-    return p.path;
+    final p = await downloadAudio();
+    return p;
   }
 
   Stream<FileResponse> _getFileFromCacheWithProgress() {
