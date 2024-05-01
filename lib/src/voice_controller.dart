@@ -1,16 +1,15 @@
 import 'dart:async';
 import 'dart:math';
 
-import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
-import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:voice_message_package/src/helpers/play_status.dart';
 import 'package:voice_message_package/src/helpers/utils.dart';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
+import 'package:http/http.dart' as http;
 /// A controller for managing voice playback.
 ///
 /// The [VoiceController] class provides functionality for playing, pausing, stopping, and seeking voice playback.
@@ -76,7 +75,7 @@ class VoiceController extends MyTicker {
 
   double get maxMillSeconds => maxDuration.inMilliseconds.toDouble();
 
-  StreamSubscription<FileResponse>? downloadStreamSubscription;
+  // StreamSubscription<FileResponse>? downloadStreamSubscription;
 
   /// Creates a new [VoiceController] instance.
   VoiceController({
@@ -103,57 +102,73 @@ class VoiceController extends MyTicker {
   /// Initializes the voice controller.
   Future init() async {
     await setMaxDuration(audioSrc);
+  await  downloadAudio();
     _updateUi();
   }
 
-Future<String> downloadAudio() async {
-  final dio = Dio();
-  final response = await dio.get<List<int>>(audioSrc, options: Options(responseType: ResponseType.bytes));
-  final bytes = response.data!;
-  final appDir = await getApplicationDocumentsDirectory();
-  final filePath = '${appDir.path}/audio.mp3';
-  final file = File(filePath);
-  await file.writeAsBytes(bytes);
-  return filePath;
+File? downloadedFile;
+String? downloadedFilePath;
+FutureOr<String> downloadAudio() async {
+  try {
+    final Directory appDocDir = await getApplicationDocumentsDirectory();
+    final String appDocPath = appDocDir.path;
+    final File file = File('$appDocPath/audio.mp3');
+
+    final response = await http.get(Uri.parse(audioSrc));
+    if (response.statusCode == 200) {
+      await file.writeAsBytes(response.bodyBytes);
+      downloadedFile = file;
+      downloadedFilePath = file.path;
+      return file.path;
+    } else {
+      print('Failed to download audio file: ${response.statusCode}');
+      return "";
+    }
+  } catch (e) {
+    print(e);
+    print("failed to download the file ");
+    return "";
+  }
 }
 
-  Future play() async {
-    try {
-      playStatus = PlayStatus.downloading;
-      _updateUi();
-      if (isFile) {
-        final path = await _getFileFromCache();
-        await startPlaying(path);
+ Future play() async {
+  try {
+    playStatus = PlayStatus.downloading;
+    _updateUi();
+
+    if (isFile) {
+      final path = downloadedFilePath ?? "";
+      await startPlaying(path);
+      onPlaying();
+    } else {
+      final response = await http.get(Uri.parse(audioSrc));
+      if (response.statusCode == 200) {
+        final Directory appDocDir = await getApplicationDocumentsDirectory();
+        final String appDocPath = appDocDir.path;
+        final File file = File('$appDocPath/audio.mp3');
+        await file.writeAsBytes(response.bodyBytes);
+        downloadedFile = file;
+        downloadedFilePath = file.path;
+        await startPlaying(file.path);
         onPlaying();
       } else {
-     
-       final audio = await downloadAudio();
-          print("eeeeeeeeee=>$audio");
-        await startPlaying(audio);
-
-        // downloadStreamSubscription = _getFileFromCacheWithProgress()
-        //     .listen((FileResponse fileResponse) async {
-        //   if (fileResponse is FileInfo) {
-        //     await startPlaying(fileResponse.file.path);
-        //     onPlaying();
-        //   } else if (fileResponse is DownloadProgress) {
-        //     _updateUi();
-        //     print(downloadProgress);
-        //     downloadProgress = fileResponse.progress;
-        //   }
-        // });
-      }
-    } catch (err) {
-      playStatus = PlayStatus.downloadError;
-      _updateUi();
-      if (onError != null) {
-        onError!(err);
-      } else {
-        rethrow;
+        playStatus = PlayStatus.downloadError;
+        _updateUi();
+        if (onError != null) {
+          onError!(Exception('Failed to download audio file: ${response.statusCode}'));
+        }
       }
     }
+  } catch (err) {
+    playStatus = PlayStatus.downloadError;
+    _updateUi();
+    if (onError != null) {
+      onError!(err);
+    } else {
+      rethrow;
+    }
   }
-
+}
   void _listenToRemindingTime() {
     positionStream = _player.positionStream.listen((Duration p) async {
       if (!isDownloading) currentDuration = p;
@@ -184,15 +199,14 @@ Future<String> downloadAudio() async {
   }
 
   /// Starts playing the voice.
-  Future startPlaying(String path) async {
-    // Uri audioUri = isFile ? Uri.file(audioSrc) : Uri.parse(audioSrc);
-    await _player.setAudioSource(
-      AudioSource.uri(Uri.file(path)),
-      initialPosition: currentDuration,
-    );
-    _player.play();
-    _player.setSpeed(speed.getSpeed);
-  }
+Future startPlaying(String path) async {
+  await _player.setAudioSource(
+    AudioSource.uri(Uri.file(path)),
+    initialPosition: currentDuration,
+  );
+  _player.play();
+  _player.setSpeed(speed.getSpeed);
+}
 
   Future<void> dispose() async {
     await _player.dispose();
@@ -217,23 +231,24 @@ Future<String> downloadAudio() async {
     onPause();
   }
 
-  Future<String> _getFileFromCache() async {
-    if (isFile) {
-      return audioSrc;
-    }
-    final p = await downloadAudio();
-    return p;
+Future<String> _getFileFromCache(String filePath) async {
+  if (isFile) {
+    return filePath;
   }
+  
+  return filePath;
+}
 
-  Stream<FileResponse> _getFileFromCacheWithProgress() {
-    if (isFile) {
-      throw Exception("This method is not applicable for local files.");
-    }
-    return DefaultCacheManager().getFileStream(audioSrc, withProgress: true);
-  }
+  // Stream<FileResponse> _getFileFromCacheWithProgress() {
+  //   if (isFile) {
+  //     throw Exception("This method is not applicable for local files.");
+  //   }
+  //   return DefaultCacheManager().getFileStream(downloadedFilePath??"", withProgress: false,);
+  //   // return DefaultCacheManager().getFileStream(downloadedFilePath??"", withProgress: true);
+  // }
 
   void cancelDownload() {
-    downloadStreamSubscription?.cancel();
+  
     playStatus = PlayStatus.init;
     _updateUi();
   }

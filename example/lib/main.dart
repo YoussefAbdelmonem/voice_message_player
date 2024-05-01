@@ -22,7 +22,7 @@ class MyApp extends StatelessWidget {
                     controller: VoiceController(
                       audioSrc:
                           'https://app.seen.ninja/storage/media/410/1713680496999999.mp3',
-                      maxDuration: const Duration(minutes: 10),
+                      maxDuration: const Duration(seconds: 10),
                       isFile: false,
                       onComplete: () {
                         /// do something on complete
